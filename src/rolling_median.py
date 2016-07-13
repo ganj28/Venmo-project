@@ -4,10 +4,10 @@
 #### Date - July 11, 2016x
 #### This program calculates the median degree of a vertex in a
 #### graph and updates  each time a new Venmo payment appears.
-#### The median is calculated the med#### across a 60-second sliding window.
+#### The median is calculated  across a 60-second sliding window.
 ##############################################################################
 
-
+import time
 import datetime
 import numpy
 from collections import Counter    
@@ -15,6 +15,28 @@ from datetime import datetime
 global mygraph
 global maxtime
 
+def CheckData(mydata):
+	''' This function checks validity of the data '''
+	flag = 0
+	if type (mydata) == dict:
+		mykeys=('actor','target','created_time')
+		mydata_keys=mydata.keys()
+		iskey=all (key in mydata_keys for key in mykeys)
+		if iskey == True:
+			mydata_values=mydata.values()
+			for val in mydata_values:
+				if val=="":
+					flag=1
+			try:
+				mytime=datetime.strptime(mydata['created_time'], '%Y-%m-%dT%H:%M:%SZ')
+			except:
+				flag=1
+		else:
+			flag=1
+	else:
+		flag=1
+
+	return flag
 
 def RollingMedian():
 	'''  This function calculates the median and outputs it to a file '''
@@ -56,13 +78,16 @@ def CheckMultipleConnections(mydata):
 	global mygraph
 	indlist=[]
 	for eachline in mygraph:
-        	if mydata['target']==eachline['target'] and mydata['actor']==eachline['actor'] and mydata['created_time']!=eachline['created_time']:
-			delta=TimeDiff(mydata['created_time'],eachline['created_time'])
-			if delta < 0:
-				indlist.append(mygraph.index(eachline))
-			else:
-				indlist.append(mygraph.index(mydata))
-			RemoveEntry(indlist)
+		if (mygraph.index(eachline) != (len(mygraph) -1)):
+	        	if ((mydata['target']==eachline['target'] and mydata['actor']==eachline['actor'])
+				or 
+				(mydata['target']==eachline['actor'] and mydata['actor']==eachline['target'])):
+				delta=TimeDiff(mydata['created_time'],eachline['created_time'])
+				if delta < 0:
+					indlist.append(mygraph.index(eachline))
+				else:
+					indlist.append(mygraph.index(mydata))
+	RemoveEntry(indlist)
 
 def ProcessTime(mydata):
 	''' This function calculates the position of the current entry in the 60 second window and returns entries to be removed if older than 60 sec ''' 
@@ -90,21 +115,29 @@ def ProcessTime(mydata):
 
 first_line = 1
 output = open('./venmo_output/output.txt','w')
-with open('./venmo_input/venmo-trans.txt','r') as f:
-	 for myline in f:
-		mydata=eval(myline)
-         	if first_line:
-			mygraph=[]
-			PopulateGraph(mydata)
-			maxtime = mydata['created_time']
-			first_line=0
-		else:
-			[time_flag, del_indices_list]=ProcessTime(mydata)
-			if time_flag==1:
-				PopulateGraph(mydata)
-			elif time_flag==2:
-				RemoveEntry(del_indices_list)
-				PopulateGraph(mydata)
-			CheckMultipleConnections(mydata)
-		RollingMedian()
-output.close()
+try:
+	with open('./venmo_input/venmo-trans.txt','r') as f:
+		 for myline in f:
+			try:
+				mydata=eval(myline)
+			except:
+				mydata=''
+			if CheckData(mydata)==0:
+         			if first_line:
+					mygraph=[]
+					PopulateGraph(mydata)
+					maxtime = mydata['created_time']
+					first_line=0
+				else:
+					[time_flag, del_indices_list]=ProcessTime(mydata)
+					if time_flag==1:
+						PopulateGraph(mydata)
+						CheckMultipleConnections(mydata)
+					elif time_flag==2:
+						RemoveEntry(del_indices_list)
+						PopulateGraph(mydata)
+						CheckMultipleConnections(mydata)
+				RollingMedian()
+	output.close()
+except IOError:
+	print 'File Not Found ... Please check file location or name'
